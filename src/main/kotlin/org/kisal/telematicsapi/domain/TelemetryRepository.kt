@@ -6,5 +6,8 @@ interface TelemetryRepository {
 
     fun findLatestByImei(imei: String): TelemetryEvent?
 
-    fun findByImei(imei: String): List<TelemetryEvent>
+    fun findByImei(
+        imei: String,
+        limit: Int
+    ): List<TelemetryEvent>
 }

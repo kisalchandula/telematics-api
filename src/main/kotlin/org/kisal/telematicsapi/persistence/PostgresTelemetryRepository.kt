@@ -51,20 +51,20 @@ class PostgresTelemetryRepository(
     override fun findLatestByImei(imei: String): TelemetryEvent? {
 
         val sql = """
-            SELECT
-                imei,
-                timestamp,
-                latitude,
-                longitude,
-                altitude,
-                angle,
-                satellites,
-                speed
-            FROM telemetry_events
-            WHERE imei = ?
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """.trimIndent()
+        SELECT
+            imei,
+            timestamp,
+            latitude,
+            longitude,
+            altitude,
+            angle,
+            satellites,
+            speed
+        FROM telemetry_events
+        WHERE imei = ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+    """.trimIndent()
 
         dataSource.connection.use { connection ->
 
@@ -95,7 +95,10 @@ class PostgresTelemetryRepository(
         }
     }
 
-    override fun findByImei(imei: String): List<TelemetryEvent> {
+    override fun findByImei(
+        imei: String,
+        limit: Int
+    ): List<TelemetryEvent> {
 
         val sql = """
         SELECT
@@ -110,6 +113,7 @@ class PostgresTelemetryRepository(
         FROM telemetry_events
         WHERE imei = ?
         ORDER BY timestamp DESC
+        LIMIT ?
     """.trimIndent()
 
         dataSource.connection.use { connection ->
@@ -117,6 +121,7 @@ class PostgresTelemetryRepository(
             connection.prepareStatement(sql).use { statement ->
 
                 statement.setString(1, imei)
+                statement.setInt(2, limit)
 
                 statement.executeQuery().use { resultSet ->
 

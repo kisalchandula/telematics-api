@@ -5,6 +5,7 @@ import org.kisal.telematicsapi.domain.TelemetryRepository
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -22,8 +23,9 @@ class TelemetryController(
 
     @GetMapping("/{imei}/telemetry")
     fun getTelemetry(
-        @PathVariable imei: String
+        @PathVariable imei: String,
+        @RequestParam(defaultValue = "100") limit: Int
     ): List<TelemetryEvent> {
-        return repository.findByImei(imei)
+        return repository.findByImei(imei, limit)
     }
 }

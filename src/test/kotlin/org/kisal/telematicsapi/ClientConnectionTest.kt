@@ -367,10 +367,14 @@ class ClientConnectionTest {
                     .maxByOrNull { it.timestamp }
             }
 
-            override fun findByImei(imei: String): List<TelemetryEvent> {
+            override fun findByImei(
+                imei: String,
+                limit: Int
+            ): List<TelemetryEvent> {
                 return events
                     .filter { it.imei == imei }
                     .sortedByDescending { it.timestamp }
+                    .take(limit)
             }
         }
 
