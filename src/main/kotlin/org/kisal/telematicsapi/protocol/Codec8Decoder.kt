@@ -1,7 +1,4 @@
-package protocol
-
-import org.kisal.telematicsapi.protocol.AvlRecord
-import org.kisal.telematicsapi.protocol.IoElement
+package org.kisal.telematicsapi.protocol
 
 class Codec8Decoder {
 

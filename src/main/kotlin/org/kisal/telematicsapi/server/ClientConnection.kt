@@ -1,14 +1,14 @@
 package org.kisal.telematicsapi.server
 
-import device.DeviceSession
-import device.DeviceSessionManager
+import org.kisal.telematicsapi.device.DeviceSession
+import org.kisal.telematicsapi.device.DeviceSessionManager
 import org.kisal.telematicsapi.domain.TelemetryEvent
 import org.kisal.telematicsapi.domain.TelemetryEventMapper
-import protocol.AvlPacketDecoder
-import protocol.Codec8Decoder
-import protocol.PacketBuffer
-import protocol.ProtocolDecoder
-import protocol.ProtocolMessage
+import org.kisal.telematicsapi.protocol.AvlPacketDecoder
+import org.kisal.telematicsapi.protocol.Codec8Decoder
+import org.kisal.telematicsapi.protocol.PacketBuffer
+import org.kisal.telematicsapi.protocol.ProtocolDecoder
+import org.kisal.telematicsapi.protocol.ProtocolMessage
 import java.net.Socket
 
 class ClientConnection(

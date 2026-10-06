@@ -1,6 +1,4 @@
-package protocol
-
-import org.kisal.telematicsapi.protocol.AvlRecord
+package org.kisal.telematicsapi.protocol
 
 data class AvlPacket(
     val codecId: Int,

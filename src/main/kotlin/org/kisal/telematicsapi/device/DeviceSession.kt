@@ -1,4 +1,4 @@
-package device
+package org.kisal.telematicsapi.device
 
 import java.net.Socket
 import java.time.Instant

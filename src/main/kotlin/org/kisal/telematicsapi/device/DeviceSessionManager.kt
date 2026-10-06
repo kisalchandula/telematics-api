@@ -1,4 +1,4 @@
-package device
+package org.kisal.telematicsapi.device
 
 import java.util.concurrent.ConcurrentHashMap
 

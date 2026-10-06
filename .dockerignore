@@ -1,0 +1,9 @@
+.git
+.gradle
+.idea
+*.iml
+.env
+
+build/*
+!build/libs/
+!build/libs/telematics-api-0.0.1-SNAPSHOT.jar

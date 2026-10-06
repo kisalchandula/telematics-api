@@ -1,12 +1,12 @@
 package org.kisal.telematicsapi.server
 
-import device.DeviceSessionManager
+import org.kisal.telematicsapi.device.DeviceSessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.kisal.telematicsapi.domain.TelemetryRepository
-import protocol.AvlPacketDecoder
-import protocol.TeltonikaDecoder
+import org.kisal.telematicsapi.protocol.AvlPacketDecoder
+import org.kisal.telematicsapi.protocol.TeltonikaDecoder
 import java.net.ServerSocket
 
 class GatewayServer(

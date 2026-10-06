@@ -1,0 +1,30 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: telematics-postgres
+    environment:
+      POSTGRES_DB: telematics
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+
+  telematics-api:
+    image: telematics-api:latest
+    container_name: telematics-api
+    depends_on:
+      - postgres
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/telematics
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8080:8080"
+      - "5000:5000"
+
+volumes:
+  postgres_data:
