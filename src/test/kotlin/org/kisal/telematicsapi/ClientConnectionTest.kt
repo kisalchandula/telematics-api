@@ -366,6 +366,12 @@ class ClientConnectionTest {
                     .filter { it.imei == imei }
                     .maxByOrNull { it.timestamp }
             }
+
+            override fun findByImei(imei: String): List<TelemetryEvent> {
+                return events
+                    .filter { it.imei == imei }
+                    .sortedByDescending { it.timestamp }
+            }
         }
 
         val serverThread = thread {

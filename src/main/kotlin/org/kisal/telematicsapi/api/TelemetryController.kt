@@ -19,4 +19,11 @@ class TelemetryController(
     ): TelemetryEvent? {
         return repository.findLatestByImei(imei)
     }
+
+    @GetMapping("/{imei}/telemetry")
+    fun getTelemetry(
+        @PathVariable imei: String
+    ): List<TelemetryEvent> {
+        return repository.findByImei(imei)
+    }
 }
