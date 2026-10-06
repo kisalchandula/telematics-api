@@ -10,4 +10,10 @@ interface TelemetryRepository {
         imei: String,
         limit: Int
     ): List<TelemetryEvent>
+
+    fun findAllImeis(): List<String>
+
+    fun findDeviceInfo(imei: String): DeviceInfo?
+
+    fun findDeviceStatus(imei: String): DeviceStatus?
 }
