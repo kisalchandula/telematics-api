@@ -16,4 +16,6 @@ interface TelemetryRepository {
     fun findDeviceInfo(imei: String): DeviceInfo?
 
     fun findDeviceStatus(imei: String): DeviceStatus?
+
+    fun markOffline(imei: String)
 }

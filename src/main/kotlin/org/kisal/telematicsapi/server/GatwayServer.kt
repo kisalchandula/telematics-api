@@ -1,46 +1,68 @@
 package org.kisal.telematicsapi.server
 
 import org.kisal.telematicsapi.device.DeviceSessionManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import org.kisal.telematicsapi.domain.DeviceRepository
 import org.kisal.telematicsapi.domain.TelemetryRepository
 import org.kisal.telematicsapi.protocol.AvlPacketDecoder
-import org.kisal.telematicsapi.protocol.TeltonikaDecoder
+import org.kisal.telematicsapi.protocol.Codec8Decoder
+import org.kisal.telematicsapi.protocol.RawProtocolDecoder
 import java.net.ServerSocket
+import kotlin.concurrent.thread
 
 class GatewayServer(
     private val port: Int,
-    private val telemetryRepository: TelemetryRepository
+    private val telemetryRepository: TelemetryRepository,
+    private val deviceRepository: DeviceRepository
 ) {
 
-    private val sessionManager = DeviceSessionManager()
+    private val sessionManager =
+        DeviceSessionManager()
 
-    fun start() = runBlocking {
+    private val decoder =
+        RawProtocolDecoder()
 
-        ServerSocket(port).use { serverSocket ->
+    private val avlPacketDecoder =
+        AvlPacketDecoder()
 
-            println("Listening on port $port")
+    private val codec8Decoder =
+        Codec8Decoder()
 
-            while (true) {
+    fun start() {
 
-                val socket = serverSocket.accept()
+        val serverSocket =
+            ServerSocket(port)
 
-                launch(Dispatchers.IO) {
+        println(
+            "Telematics gateway listening on port $port"
+        )
 
-                    val decoder = TeltonikaDecoder()
-                    val avlPacketDecoder = AvlPacketDecoder()
+        while (true) {
 
-                    ClientConnection(
-                        socket = socket,
-                        decoder = decoder,
-                        avlPacketDecoder = avlPacketDecoder,
-                        sessionManager = sessionManager,
-                        telemetryEventHandler = { event ->
-                            telemetryRepository.save(event)
-                        }
-                    ).handle()
-                }
+            val socket =
+                serverSocket.accept()
+
+            thread(
+                name = "device-${socket.port}"
+            ) {
+
+                ClientConnection(
+                    socket = socket,
+                    decoder = decoder,
+                    avlPacketDecoder = avlPacketDecoder,
+                    sessionManager = sessionManager,
+                    deviceRepository = deviceRepository,
+                    telemetryRepository = telemetryRepository,
+                    codec8Decoder = codec8Decoder,
+                    telemetryEventHandler = { event ->
+
+                        telemetryRepository.save(event)
+
+                        println(
+                            "Telemetry persisted for device ID " +
+                                    "${event.deviceId}"
+                        )
+                    }
+                ).handle()
             }
         }
     }

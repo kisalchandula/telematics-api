@@ -1,7 +1,9 @@
 package org.kisal.telematicsapi.server
 
+import org.kisal.telematicsapi.domain.TelemetryRepository
 import org.kisal.telematicsapi.device.DeviceSession
 import org.kisal.telematicsapi.device.DeviceSessionManager
+import org.kisal.telematicsapi.domain.DeviceRepository
 import org.kisal.telematicsapi.domain.TelemetryEvent
 import org.kisal.telematicsapi.domain.TelemetryEventMapper
 import org.kisal.telematicsapi.protocol.AvlPacketDecoder
@@ -16,17 +18,20 @@ class ClientConnection(
     private val decoder: ProtocolDecoder,
     private val avlPacketDecoder: AvlPacketDecoder,
     private val sessionManager: DeviceSessionManager,
+    private val deviceRepository: DeviceRepository,
+    private val telemetryRepository: TelemetryRepository,
     private val codec8Decoder: Codec8Decoder = Codec8Decoder(),
     private val telemetryEventHandler: (TelemetryEvent) -> Unit = {}
 ) {
 
     private var state = ConnectionState.WAITING_FOR_IMEI
 
+    private var deviceId: Long? = null
+
     private fun processAvlPackets(
         receiveBuffer: PacketBuffer,
         session: DeviceSession?
     ) {
-
         while (true) {
 
             if (receiveBuffer.size() < 8) {
@@ -39,25 +44,20 @@ class ClientConnection(
                         ((receiveBuffer.peek(6).toInt() and 0xFF) shl 8) or
                         (receiveBuffer.peek(7).toInt() and 0xFF)
 
-            val packetLength =
-                8 + dataLength + 4
+            val packetLength = 8 + dataLength + 4
 
             if (receiveBuffer.size() < packetLength) {
                 return
             }
 
-            val packet =
-                receiveBuffer.read(packetLength)
+            val packet = receiveBuffer.read(packetLength)
 
-            val avlPacket =
-                avlPacketDecoder.decode(packet)
+            val avlPacket = avlPacketDecoder.decode(packet)
 
             if (avlPacket == null) {
-
                 println(
                     "Invalid AVL packet from device ${session?.imei}"
                 )
-
                 return
             }
 
@@ -73,16 +73,15 @@ class ClientConnection(
                 "Records: ${avlPacket.recordCount}"
             )
 
-            val records =
-                codec8Decoder.decode(avlPacket)
+            val records = codec8Decoder.decode(avlPacket)
 
             for (record in records) {
 
-                val imei = session?.imei ?: continue
+                val resolvedDeviceId = deviceId ?: continue
 
                 val telemetryEvent =
                     TelemetryEventMapper.map(
-                        imei = imei,
+                        deviceId = resolvedDeviceId,
                         record = record
                     )
 
@@ -105,7 +104,6 @@ class ClientConnection(
     private fun sendAvlAcknowledgement(
         recordCount: Int
     ) {
-
         socket.getOutputStream().write(
             byteArrayOf(
                 ((recordCount shr 24) and 0xFF).toByte(),
@@ -133,38 +131,56 @@ class ClientConnection(
 
         var session: DeviceSession? = null
 
-        socket.use {
+        try {
 
-            val input = it.getInputStream()
-            val buffer = ByteArray(1024)
+            socket.use {
 
-            while (true) {
+                val input = it.getInputStream()
 
-                val bytesRead = input.read(buffer)
+                val buffer = ByteArray(1024)
 
-                if (bytesRead == -1) {
-                    break
-                }
+                while (true) {
 
-                val data = buffer.copyOf(bytesRead)
+                    val bytesRead = input.read(buffer)
 
-                receiveBuffer.append(data)
+                    if (bytesRead == -1) {
+                        break
+                    }
 
-                when (state) {
+                    val data = buffer.copyOf(bytesRead)
 
-                    ConnectionState.WAITING_FOR_IMEI -> {
+                    receiveBuffer.append(data)
 
-                        val newSession =
-                            processImei(receiveBuffer)
+                    when (state) {
 
-                        if (newSession != null) {
+                        ConnectionState.WAITING_FOR_IMEI -> {
 
-                            session = newSession
+                            val newSession =
+                                processImei(receiveBuffer)
 
-                            state = ConnectionState.CONNECTED
+                            if (newSession != null) {
+
+                                session = newSession
+
+                                state =
+                                    ConnectionState.CONNECTED
+
+                                println(
+                                    "Connection state: $state"
+                                )
+
+                                processAvlPackets(
+                                    receiveBuffer,
+                                    session
+                                )
+                            }
+                        }
+
+                        ConnectionState.CONNECTED -> {
 
                             println(
-                                "Connection state: $state"
+                                "Received ${data.size} bytes from " +
+                                        "device ${session?.imei}"
                             )
 
                             processAvlPackets(
@@ -174,26 +190,52 @@ class ClientConnection(
                         }
                     }
 
-                    ConnectionState.CONNECTED -> {
-
-                        println(
-                            "Received ${data.size} bytes from " +
-                                    "device ${session?.imei}"
-                        )
-
-                        processAvlPackets(
-                            receiveBuffer,
-                            session
-                        )
-                    }
+                    session?.updateLastSeen()
                 }
-
-                session?.updateLastSeen()
             }
+
+        } catch (exception: Exception) {
+
+            println(
+                "Connection error for device " +
+                        "${session?.imei}: ${exception.message}"
+            )
+
+        } finally {
+
+            session?.let {
+
+                telemetryRepository.markOffline(it.imei)
+
+                sessionManager.remove(it.imei)
+
+                println(
+                    "Device marked offline: ${it.imei}"
+                )
+
+                println(
+                    "Device removed: ${it.imei}"
+                )
+
+                println(
+                    "Active devices: ${sessionManager.count()}"
+                )
+            }
+
+            println(
+                "Client disconnected"
+            )
         }
 
         session?.let {
+
+            telemetryRepository.markOffline(it.imei)
+
             sessionManager.remove(it.imei)
+
+            println(
+                "Device marked offline: ${it.imei}"
+            )
 
             println(
                 "Device removed: ${it.imei}"
@@ -204,19 +246,14 @@ class ClientConnection(
             )
         }
 
-        println("Client disconnected")
+        println(
+            "Client disconnected"
+        )
     }
 
     private fun processImei(
         receiveBuffer: PacketBuffer
     ): DeviceSession? {
-
-        /*
-         * Teltonika IMEI packet:
-         *
-         * 2 bytes -> IMEI length
-         * N bytes -> IMEI
-         */
 
         if (receiveBuffer.size() < 2) {
             return null
@@ -232,23 +269,54 @@ class ClientConnection(
             return null
         }
 
-        val packet = receiveBuffer.read(packetLength)
+        val packet =
+            receiveBuffer.read(packetLength)
 
-        val message = decoder.decode(packet)
+        println("IMEI packet received: ${packet.size} bytes")
+
+        val message =
+            decoder.decode(packet)
+
+        println("Decoded IMEI message: $message")
 
         if (message !is ProtocolMessage.Imei) {
             return null
         }
 
-        val newSession = DeviceSession(
-            imei = message.value,
-            socket = socket
-        )
+        val device =
+            deviceRepository.findByImei(message.value)
+
+        if (device == null || !device.active) {
+
+            println(
+                "Unknown or inactive device: ${message.value}"
+            )
+
+            socket.getOutputStream().write(
+                byteArrayOf(0x00)
+            )
+
+            socket.getOutputStream().flush()
+
+            return null
+        }
+
+        deviceId = device.id
+
+        val newSession =
+            DeviceSession(
+                imei = message.value,
+                socket = socket
+            )
 
         sessionManager.register(newSession)
 
         println(
             "Device connected: ${newSession.imei}"
+        )
+
+        println(
+            "Device ID: ${device.id}"
         )
 
         println(
@@ -268,6 +336,8 @@ class ClientConnection(
 
         socket.getOutputStream().flush()
 
-        println("Device accepted")
+        println(
+            "Device accepted"
+        )
     }
 }

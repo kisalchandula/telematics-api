@@ -31,11 +31,6 @@ class TelemetryController(
         return repository.findByImei(imei, limit)
     }
 
-    @GetMapping
-    fun getDevices(): List<String> {
-        return repository.findAllImeis()
-    }
-
     @GetMapping("/{imei}")
     fun getDevice(
         @PathVariable imei: String

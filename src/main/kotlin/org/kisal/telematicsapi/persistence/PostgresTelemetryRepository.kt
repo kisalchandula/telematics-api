@@ -6,8 +6,8 @@ import org.kisal.telematicsapi.domain.TelemetryEvent
 import org.kisal.telematicsapi.domain.TelemetryRepository
 import org.springframework.stereotype.Repository
 import java.sql.Timestamp
-import javax.sql.DataSource
 import java.time.Instant
+import javax.sql.DataSource
 
 @Repository
 class PostgresTelemetryRepository(
@@ -16,57 +16,182 @@ class PostgresTelemetryRepository(
 
     override fun save(event: TelemetryEvent) {
 
-        val sql = """
-            INSERT INTO telemetry_events (
-                imei,
-                timestamp,
-                latitude,
-                longitude,
-                altitude,
-                angle,
-                satellites,
-                speed
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """.trimIndent()
+        val insertTelemetrySql = """
+        INSERT INTO telemetry_events (
+            device_id,
+            event_time,
+            received_at,
+            latitude,
+            longitude,
+            altitude,
+            heading,
+            satellites,
+            speed
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """.trimIndent()
+
+        val updateStateSql = """
+        INSERT INTO device_state (
+            device_id,
+            last_seen,
+            latitude,
+            longitude,
+            altitude,
+            speed,
+            heading,
+            satellites,
+            connection_status,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ONLINE', NOW())
+        ON CONFLICT (device_id)
+        DO UPDATE SET
+            last_seen = EXCLUDED.last_seen,
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            altitude = EXCLUDED.altitude,
+            speed = EXCLUDED.speed,
+            heading = EXCLUDED.heading,
+            satellites = EXCLUDED.satellites,
+            connection_status = 'ONLINE',
+            updated_at = NOW()
+    """.trimIndent()
 
         dataSource.connection.use { connection ->
 
-            connection.prepareStatement(sql).use { statement ->
+            connection.autoCommit = false
 
-                statement.setString(1, event.imei)
-                statement.setTimestamp(
-                    2,
-                    Timestamp.from(event.timestamp)
-                )
-                statement.setDouble(3, event.latitude)
-                statement.setDouble(4, event.longitude)
-                statement.setInt(5, event.altitude)
-                statement.setInt(6, event.angle)
-                statement.setInt(7, event.satellites)
-                statement.setInt(8, event.speed)
+            try {
 
-                statement.executeUpdate()
+                connection.prepareStatement(
+                    insertTelemetrySql
+                ).use { statement ->
+
+                    statement.setLong(
+                        1,
+                        event.deviceId
+                    )
+
+                    statement.setTimestamp(
+                        2,
+                        Timestamp.from(event.timestamp)
+                    )
+
+                    statement.setTimestamp(
+                        3,
+                        Timestamp.from(event.receivedAt)
+                    )
+
+                    statement.setDouble(
+                        4,
+                        event.latitude
+                    )
+
+                    statement.setDouble(
+                        5,
+                        event.longitude
+                    )
+
+                    statement.setInt(
+                        6,
+                        event.altitude
+                    )
+
+                    statement.setInt(
+                        7,
+                        event.heading
+                    )
+
+                    statement.setInt(
+                        8,
+                        event.satellites
+                    )
+
+                    statement.setInt(
+                        9,
+                        event.speed
+                    )
+
+                    statement.executeUpdate()
+                }
+
+                connection.prepareStatement(
+                    updateStateSql
+                ).use { statement ->
+
+                    statement.setLong(
+                        1,
+                        event.deviceId
+                    )
+
+                    statement.setTimestamp(
+                        2,
+                        Timestamp.from(event.timestamp)
+                    )
+
+                    statement.setDouble(
+                        3,
+                        event.latitude
+                    )
+
+                    statement.setDouble(
+                        4,
+                        event.longitude
+                    )
+
+                    statement.setInt(
+                        5,
+                        event.altitude
+                    )
+
+                    statement.setInt(
+                        6,
+                        event.speed
+                    )
+
+                    statement.setInt(
+                        7,
+                        event.heading
+                    )
+
+                    statement.setInt(
+                        8,
+                        event.satellites
+                    )
+
+                    statement.executeUpdate()
+                }
+
+                connection.commit()
+
+            } catch (exception: Exception) {
+
+                connection.rollback()
+
+                throw exception
             }
         }
     }
 
-    override fun findLatestByImei(imei: String): TelemetryEvent? {
+    override fun findLatestByImei(
+        imei: String
+    ): TelemetryEvent? {
 
         val sql = """
         SELECT
-            imei,
-            timestamp,
-            latitude,
-            longitude,
-            altitude,
-            angle,
-            satellites,
-            speed
-        FROM telemetry_events
-        WHERE imei = ?
-        ORDER BY timestamp DESC
-        LIMIT 1
+            s.device_id,
+            s.last_seen,
+            s.latitude,
+            s.longitude,
+            s.altitude,
+            s.heading,
+            s.satellites,
+            s.speed
+        FROM device_state s
+        JOIN devices d
+            ON d.id = s.device_id
+        WHERE d.imei = ?
     """.trimIndent()
 
         dataSource.connection.use { connection ->
@@ -81,17 +206,36 @@ class PostgresTelemetryRepository(
                         return null
                     }
 
+                    val timestamp =
+                        resultSet
+                            .getTimestamp("last_seen")
+                            .toInstant()
+
                     return TelemetryEvent(
-                        imei = resultSet.getString("imei"),
-                        timestamp = resultSet
-                            .getTimestamp("timestamp")
-                            .toInstant(),
-                        latitude = resultSet.getDouble("latitude"),
-                        longitude = resultSet.getDouble("longitude"),
-                        altitude = resultSet.getInt("altitude"),
-                        angle = resultSet.getInt("angle"),
-                        satellites = resultSet.getInt("satellites"),
-                        speed = resultSet.getInt("speed")
+                        deviceId =
+                            resultSet.getLong("device_id"),
+
+                        timestamp = timestamp,
+
+                        receivedAt = timestamp,
+
+                        latitude =
+                            resultSet.getDouble("latitude"),
+
+                        longitude =
+                            resultSet.getDouble("longitude"),
+
+                        altitude =
+                            resultSet.getInt("altitude"),
+
+                        heading =
+                            resultSet.getInt("heading"),
+
+                        satellites =
+                            resultSet.getInt("satellites"),
+
+                        speed =
+                            resultSet.getInt("speed")
                     )
                 }
             }
@@ -104,20 +248,23 @@ class PostgresTelemetryRepository(
     ): List<TelemetryEvent> {
 
         val sql = """
-        SELECT
-            imei,
-            timestamp,
-            latitude,
-            longitude,
-            altitude,
-            angle,
-            satellites,
-            speed
-        FROM telemetry_events
-        WHERE imei = ?
-        ORDER BY timestamp DESC
-        LIMIT ?
-    """.trimIndent()
+            SELECT
+                t.device_id,
+                t.event_time,
+                t.received_at,
+                t.latitude,
+                t.longitude,
+                t.altitude,
+                t.heading,
+                t.satellites,
+                t.speed
+            FROM telemetry_events t
+            JOIN devices d
+                ON d.id = t.device_id
+            WHERE d.imei = ?
+            ORDER BY t.event_time DESC
+            LIMIT ?
+        """.trimIndent()
 
         dataSource.connection.use { connection ->
 
@@ -131,20 +278,8 @@ class PostgresTelemetryRepository(
                     val events = mutableListOf<TelemetryEvent>()
 
                     while (resultSet.next()) {
-
                         events.add(
-                            TelemetryEvent(
-                                imei = resultSet.getString("imei"),
-                                timestamp = resultSet
-                                    .getTimestamp("timestamp")
-                                    .toInstant(),
-                                latitude = resultSet.getDouble("latitude"),
-                                longitude = resultSet.getDouble("longitude"),
-                                altitude = resultSet.getInt("altitude"),
-                                angle = resultSet.getInt("angle"),
-                                satellites = resultSet.getInt("satellites"),
-                                speed = resultSet.getInt("speed")
-                            )
+                            mapTelemetryEvent(resultSet)
                         )
                     }
 
@@ -157,10 +292,11 @@ class PostgresTelemetryRepository(
     override fun findAllImeis(): List<String> {
 
         val sql = """
-        SELECT DISTINCT imei
-        FROM telemetry_events
-        ORDER BY imei
-    """.trimIndent()
+            SELECT imei
+            FROM devices
+            WHERE active = TRUE
+            ORDER BY imei
+        """.trimIndent()
 
         dataSource.connection.use { connection ->
 
@@ -182,22 +318,24 @@ class PostgresTelemetryRepository(
         }
     }
 
-    override fun findDeviceInfo(imei: String): DeviceInfo? {
+    override fun findDeviceInfo(
+        imei: String
+    ): DeviceInfo? {
 
         val sql = """
         SELECT
-            imei,
-            timestamp,
-            latitude,
-            longitude,
-            altitude,
-            angle,
-            satellites,
-            speed
-        FROM telemetry_events
-        WHERE imei = ?
-        ORDER BY timestamp DESC
-        LIMIT 1
+            s.device_id,
+            s.last_seen,
+            s.latitude,
+            s.longitude,
+            s.altitude,
+            s.heading,
+            s.satellites,
+            s.speed
+        FROM device_state s
+        JOIN devices d
+            ON d.id = s.device_id
+        WHERE d.imei = ?
     """.trimIndent()
 
         dataSource.connection.use { connection ->
@@ -212,22 +350,42 @@ class PostgresTelemetryRepository(
                         return null
                     }
 
-                    val latestTelemetry = TelemetryEvent(
-                        imei = resultSet.getString("imei"),
-                        timestamp = resultSet
-                            .getTimestamp("timestamp")
-                            .toInstant(),
-                        latitude = resultSet.getDouble("latitude"),
-                        longitude = resultSet.getDouble("longitude"),
-                        altitude = resultSet.getInt("altitude"),
-                        angle = resultSet.getInt("angle"),
-                        satellites = resultSet.getInt("satellites"),
-                        speed = resultSet.getInt("speed")
-                    )
+                    val timestamp =
+                        resultSet
+                            .getTimestamp("last_seen")
+                            .toInstant()
+
+                    val latestTelemetry =
+                        TelemetryEvent(
+                            deviceId =
+                                resultSet.getLong("device_id"),
+
+                            timestamp = timestamp,
+
+                            receivedAt = timestamp,
+
+                            latitude =
+                                resultSet.getDouble("latitude"),
+
+                            longitude =
+                                resultSet.getDouble("longitude"),
+
+                            altitude =
+                                resultSet.getInt("altitude"),
+
+                            heading =
+                                resultSet.getInt("heading"),
+
+                            satellites =
+                                resultSet.getInt("satellites"),
+
+                            speed =
+                                resultSet.getInt("speed")
+                        )
 
                     return DeviceInfo(
                         imei = imei,
-                        lastSeen = latestTelemetry.timestamp,
+                        lastSeen = timestamp,
                         latestTelemetry = latestTelemetry
                     )
                 }
@@ -235,14 +393,18 @@ class PostgresTelemetryRepository(
         }
     }
 
-    override fun findDeviceStatus(imei: String): DeviceStatus? {
+    override fun findDeviceStatus(
+        imei: String
+    ): DeviceStatus? {
 
         val sql = """
-        SELECT timestamp
-        FROM telemetry_events
-        WHERE imei = ?
-        ORDER BY timestamp DESC
-        LIMIT 1
+        SELECT
+            s.last_seen,
+            s.connection_status
+        FROM device_state s
+        JOIN devices d
+            ON d.id = s.device_id
+        WHERE d.imei = ?
     """.trimIndent()
 
         dataSource.connection.use { connection ->
@@ -257,19 +419,15 @@ class PostgresTelemetryRepository(
                         return null
                     }
 
-                    val lastSeen = resultSet
-                        .getTimestamp("timestamp")
-                        .toInstant()
+                    val lastSeen =
+                        resultSet
+                            .getTimestamp("last_seen")
+                            .toInstant()
 
-                    val status = if (
-                        lastSeen.isAfter(
-                            Instant.now().minusSeconds(60)
+                    val status =
+                        resultSet.getString(
+                            "connection_status"
                         )
-                    ) {
-                        "ONLINE"
-                    } else {
-                        "OFFLINE"
-                    }
 
                     return DeviceStatus(
                         imei = imei,
@@ -277,6 +435,53 @@ class PostgresTelemetryRepository(
                         lastSeen = lastSeen
                     )
                 }
+            }
+        }
+    }
+
+    private fun mapTelemetryEvent(
+        resultSet: java.sql.ResultSet
+    ): TelemetryEvent {
+
+        return TelemetryEvent(
+            deviceId = resultSet.getLong("device_id"),
+
+            timestamp = resultSet
+                .getTimestamp("event_time")
+                .toInstant(),
+
+            receivedAt = resultSet
+                .getTimestamp("received_at")
+                .toInstant(),
+
+            latitude = resultSet.getDouble("latitude"),
+            longitude = resultSet.getDouble("longitude"),
+            altitude = resultSet.getInt("altitude"),
+            heading = resultSet.getInt("heading"),
+            satellites = resultSet.getInt("satellites"),
+            speed = resultSet.getInt("speed")
+        )
+    }
+
+    override fun markOffline(imei: String) {
+
+        val sql = """
+        UPDATE device_state
+        SET
+            connection_status = 'OFFLINE',
+            updated_at = NOW()
+        FROM devices
+        WHERE device_state.device_id = devices.id
+          AND devices.imei = ?
+    """.trimIndent()
+
+        dataSource.connection.use { connection ->
+
+            connection.prepareStatement(sql).use { statement ->
+
+                statement.setString(1, imei)
+
+                statement.executeUpdate()
             }
         }
     }

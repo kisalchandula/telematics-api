@@ -6,19 +6,21 @@ import java.time.Instant
 object TelemetryEventMapper {
 
     fun map(
-        imei: String,
-        record: AvlRecord
+        deviceId: Long,
+        record: AvlRecord,
+        receivedAt: Instant = Instant.now()
     ): TelemetryEvent {
 
         val gps = record.gps
 
         return TelemetryEvent(
-            imei = imei,
+            deviceId = deviceId,
             timestamp = Instant.ofEpochMilli(gps.timestamp),
+            receivedAt = receivedAt,
             latitude = gps.latitude,
             longitude = gps.longitude,
             altitude = gps.altitude,
-            angle = gps.angle,
+            heading = gps.angle,
             satellites = gps.satellites,
             speed = gps.speed,
             ioElements = record.ioElements

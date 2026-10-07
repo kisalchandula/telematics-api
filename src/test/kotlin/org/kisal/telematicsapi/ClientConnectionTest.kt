@@ -2,6 +2,10 @@ package org.kisal.telematicsapi
 
 import org.junit.jupiter.api.Test
 import org.kisal.telematicsapi.device.DeviceSessionManager
+import org.kisal.telematicsapi.domain.Device
+import org.kisal.telematicsapi.domain.DeviceInfo
+import org.kisal.telematicsapi.domain.DeviceRepository
+import org.kisal.telematicsapi.domain.DeviceStatus
 import org.kisal.telematicsapi.domain.TelemetryEvent
 import org.kisal.telematicsapi.domain.TelemetryRepository
 import org.kisal.telematicsapi.protocol.AvlPacketDecoder
@@ -28,6 +32,10 @@ class ClientConnectionTest {
 
         val avlPacketDecoder = AvlPacketDecoder()
 
+        val deviceRepository = TestDeviceRepository()
+
+        val telemetryRepository = TestTelemetryRepository()
+
         val serverThread = thread {
 
             val socket = serverSocket.accept()
@@ -36,7 +44,9 @@ class ClientConnectionTest {
                 socket = socket,
                 decoder = decoder,
                 avlPacketDecoder = avlPacketDecoder,
-                sessionManager = sessionManager
+                sessionManager = sessionManager,
+                deviceRepository = deviceRepository,
+                telemetryRepository = telemetryRepository
             ).handle()
         }
 
@@ -96,6 +106,10 @@ class ClientConnectionTest {
 
         val avlPacketDecoder = AvlPacketDecoder()
 
+        val deviceRepository = TestDeviceRepository()
+
+        val telemetryRepository = TestTelemetryRepository()
+
         val serverThread = thread {
 
             val socket = serverSocket.accept()
@@ -104,7 +118,9 @@ class ClientConnectionTest {
                 socket = socket,
                 decoder = decoder,
                 avlPacketDecoder = avlPacketDecoder,
-                sessionManager = sessionManager
+                sessionManager = sessionManager,
+                deviceRepository = deviceRepository,
+                telemetryRepository = telemetryRepository
             ).handle()
         }
 
@@ -117,7 +133,7 @@ class ClientConnectionTest {
         val input = client.getInputStream()
 
         /*
-         * Send IMEI
+         * Send IMEI.
          */
 
         val imei = "123456789012345"
@@ -222,6 +238,10 @@ class ClientConnectionTest {
 
         val avlPacketDecoder = AvlPacketDecoder()
 
+        val deviceRepository = TestDeviceRepository()
+
+        val telemetryRepository = TestTelemetryRepository()
+
         val serverThread = thread {
 
             val socket = serverSocket.accept()
@@ -230,7 +250,9 @@ class ClientConnectionTest {
                 socket = socket,
                 decoder = decoder,
                 avlPacketDecoder = avlPacketDecoder,
-                sessionManager = sessionManager
+                sessionManager = sessionManager,
+                deviceRepository = deviceRepository,
+                telemetryRepository = telemetryRepository
             ).handle()
         }
 
@@ -243,7 +265,7 @@ class ClientConnectionTest {
         val input = client.getInputStream()
 
         /*
-         * IMEI
+         * IMEI.
          */
 
         val imei = "123456789012345"
@@ -355,28 +377,11 @@ class ClientConnectionTest {
 
         val events = mutableListOf<TelemetryEvent>()
 
-        val repository = object : TelemetryRepository {
+        val deviceRepository =
+            TestDeviceRepository()
 
-            override fun save(event: TelemetryEvent) {
-                events.add(event)
-            }
-
-            override fun findLatestByImei(imei: String): TelemetryEvent? {
-                return events
-                    .filter { it.imei == imei }
-                    .maxByOrNull { it.timestamp }
-            }
-
-            override fun findByImei(
-                imei: String,
-                limit: Int
-            ): List<TelemetryEvent> {
-                return events
-                    .filter { it.imei == imei }
-                    .sortedByDescending { it.timestamp }
-                    .take(limit)
-            }
-        }
+        val telemetryRepository =
+            TestTelemetryRepository()
 
         val serverThread = thread {
 
@@ -387,8 +392,10 @@ class ClientConnectionTest {
                 decoder = decoder,
                 avlPacketDecoder = avlPacketDecoder,
                 sessionManager = sessionManager,
+                deviceRepository = deviceRepository,
+                telemetryRepository = telemetryRepository,
                 telemetryEventHandler = { event ->
-                    repository.save(event)
+                    events.add(event)
                 }
             ).handle()
         }
@@ -677,8 +684,8 @@ class ClientConnectionTest {
             events.first()
 
         assertEquals(
-            imei,
-            event.imei
+            1L,
+            event.deviceId
         )
 
         assertEquals(
@@ -700,7 +707,7 @@ class ClientConnectionTest {
 
         assertEquals(
             90,
-            event.angle
+            event.heading
         )
 
         assertEquals(
@@ -740,5 +747,96 @@ class ClientConnectionTest {
             ((value shr 8) and 0xFF).toByte(),
             (value and 0xFF).toByte()
         )
+    }
+
+    private class TestDeviceRepository : DeviceRepository {
+
+        private val device =
+            Device(
+                id = 1L,
+                imei = "123456789012345",
+                manufacturer = "Teltonika",
+                model = "Test",
+                name = "Test Device",
+                active = true
+            )
+
+        override fun findByImei(
+            imei: String
+        ): Device? {
+            return if (imei == device.imei) {
+                device
+            } else {
+                null
+            }
+        }
+
+        override fun findAll(): List<Device> {
+            return listOf(device)
+        }
+
+        override fun save(
+            device: Device
+        ): Device {
+            return device
+        }
+
+        override fun deleteByImei(imei: String): Boolean {
+            return imei == device.imei
+        }
+    }
+
+    private class TestTelemetryRepository :
+        TelemetryRepository {
+
+        private val events =
+            mutableListOf<TelemetryEvent>()
+
+        override fun save(
+            event: TelemetryEvent
+        ) {
+            events.add(event)
+        }
+
+        override fun findLatestByImei(
+            imei: String
+        ): TelemetryEvent? {
+            return events.maxByOrNull {
+                it.timestamp
+            }
+        }
+
+        override fun findByImei(
+            imei: String,
+            limit: Int
+        ): List<TelemetryEvent> {
+            return events
+                .sortedByDescending {
+                    it.timestamp
+                }
+                .take(limit)
+        }
+
+        override fun findAllImeis(): List<String> {
+            return emptyList()
+        }
+
+        override fun findDeviceInfo(
+            imei: String
+        ): DeviceInfo? {
+            return null
+        }
+
+        override fun findDeviceStatus(
+            imei: String
+        ): DeviceStatus? {
+            return null
+        }
+
+        override fun markOffline(
+            imei: String
+        ) {
+            // Nothing required for this unit test.
+        }
     }
 }
