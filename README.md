@@ -240,36 +240,6 @@ The tests cover areas including:
 * Telemetry processing
 * Database integration
 
-## Project Structure
-
-```text
-telematics-api/
-│
-├── src/
-│   ├── main/
-│   │   └── kotlin/
-│   │       └── org/kisal/telematicsapi/
-│   │           ├── device/
-│   │           ├── domain/
-│   │           ├── protocol/
-│   │           ├── server/
-│   │           └── ...
-│   │
-│   └── test/
-│
-├── simulator/
-│   └── ...
-│
-├── frontend/
-│   └── ...
-│
-├── schema.sql
-├── Dockerfile
-├── docker-compose.yml
-├── build.gradle.kts
-└── settings.gradle.kts
-```
-
 ## What This Project Demonstrates
 
 This project focuses on the complete telemetry ingestion path rather than only implementing a REST API:
