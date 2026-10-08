@@ -1,6 +1,6 @@
 # Telematics API
 
-A Kotlin/JVM telematics backend that receives vehicle telemetry over TCP, decodes Teltonika Codec 8 AVL packets, persists telemetry in PostgreSQL, and exposes the latest vehicle position through a Spring Boot REST API.
+A Kotlin/JVM telematics backend that receives vehicle telemetry over TCP, decodes Teltonika Codec 8 AVL packets, persists telemetry in PostgreSQL, and exposes the latest vehicle position with other attcahed sensor data through a Spring Boot REST API.
 
 The project was built as a focused proof-of-work demonstrating practical experience with **Kotlin/JVM, TCP networking, binary protocol decoding, PostgreSQL, Spring Boot, Docker, and vehicle telemetry processing**.
 
