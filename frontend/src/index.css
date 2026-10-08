@@ -46,11 +46,63 @@ nav {
 }
 
 .nav-item {
+  width: 100%;
   padding: 10px;
+  border: none;
   border-radius: 7px;
+  background: transparent;
   color: #aebbc7;
-  text-decoration: none;
+  text-align: left;
   font-size: 13px;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: #172a38;
+  color: white;
+}
+
+.nav-item.active {
+  background: #1d3548;
+  color: white;
+}
+
+.vehicle-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px 0 8px;
+}
+
+.vehicle-selector > span {
+  padding: 4px 10px;
+  color: #6b8ca8;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.vehicle-button {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #aebbc7;
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.vehicle-button:hover {
+  background: #172a38;
+  color: white;
+}
+
+.vehicle-button.active {
+  background: #1d3548;
+  color: white;
 }
 
 .nav-item.active {
@@ -313,4 +365,242 @@ td {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* =========================
+   PAGE VIEWS
+   ========================= */
+
+.page-panel {
+  flex: 1;
+  min-height: 0;
+  background: white;
+  border: 1px solid #e1e6eb;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+  border-bottom: 1px solid #edf0f2;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.page-header p {
+  margin: 4px 0 0;
+  color: #7a8792;
+  font-size: 12px;
+}
+
+.page-header > span {
+  color: #7a8792;
+  font-size: 11px;
+}
+
+.vehicles-table-container {
+  padding: 0 20px 20px;
+}
+
+.vehicles-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.vehicles-table th,
+.vehicles-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf0f2;
+  text-align: left;
+  font-size: 12px;
+}
+
+.vehicles-table th {
+  color: #7a8792;
+  font-weight: 600;
+  background: #f8fafb;
+}
+
+.vehicles-table td {
+  color: #35424d;
+}
+
+.vehicles-table tbody tr:hover {
+  background: #f8fafb;
+}
+
+.vehicles-table tbody tr.selected-row {
+  background: #f0f5f8;
+}
+
+.vehicle-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vehicle-table-icon {
+  font-size: 20px;
+}
+
+.vehicle-name strong {
+  font-size: 12px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.status-badge.online {
+  background: #e7f6ef;
+  color: #16855a;
+}
+
+.view-button {
+  padding: 5px 10px;
+  border: 1px solid #d5dde3;
+  border-radius: 5px;
+  background: white;
+  color: #35424d;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.view-button:hover {
+  background: #eef2f5;
+}
+
+.page-content {
+  padding: 20px;
+  color: #7a8792;
+  font-size: 13px;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.add-device-button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #101820;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.add-device-button:hover {
+  background: #1d2a34;
+}
+
+.device-form-container {
+  padding: 0 20px 20px;
+}
+
+.device-form {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  padding: 16px;
+  background: #f8fafb;
+  border: 1px solid #e4e9ed;
+  border-radius: 6px;
+}
+
+.device-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.device-form-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #66737e;
+}
+
+.device-form-field input {
+  padding: 8px 10px;
+  border: 1px solid #d5dde3;
+  border-radius: 5px;
+  font-size: 12px;
+  outline: none;
+}
+
+.device-form-field input:focus {
+  border-color: #8d9aa5;
+}
+
+.device-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancel-device-button,
+.save-device-button {
+  padding: 7px 13px;
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cancel-device-button {
+  border: 1px solid #d5dde3;
+  background: white;
+  color: #35424d;
+}
+
+.save-device-button {
+  border: none;
+  background: #101820;
+  color: white;
+}
+
+.save-device-button:hover {
+  background: #1d2a34;
+}
+
+.status-badge.offline {
+  background: #fbeaea;
+  color: #b94a48;
+}
+
+.status-badge.registered {
+  background: #eef2f5;
+  color: #66737e;
+}
+
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remove-button {
+  padding: 5px 10px;
+  border: 1px solid #e2caca;
+  border-radius: 5px;
+  background: white;
+  color: #b94a48;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.remove-button:hover {
+  background: #fbeaea;
 }

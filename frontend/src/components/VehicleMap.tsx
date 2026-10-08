@@ -1,257 +1,360 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
+import vehicleMarker from "../assets/vehicle_marker.svg"
 
 type Telemetry = {
-    latitude: number
-    longitude: number
-    heading: number
+  latitude: number
+  longitude: number
+  heading: number
+  timestamp: string
 }
 
-type VehicleMapProps = {
+type VehicleTelemetry = {
+  imei: string
   telemetry: Telemetry[]
 }
 
-function VehicleMap({
-  telemetry
-}: VehicleMapProps) {
-
+type VehicleMapProps = {
+  vehicles: VehicleTelemetry[]
+  selectedImei: string | null
+  onVehicleSelect: (imei: string) => void
+}
+export default function VehicleMap({
+                                     vehicles,
+                                     selectedImei,
+                                     onVehicleSelect,
+                                   }: VehicleMapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null)
-
   const map = useRef<mapboxgl.Map | null>(null)
+  const markers = useRef<Record<string, mapboxgl.Marker>>({})
 
-  const marker = useRef<mapboxgl.Marker | null>(null)
+  /*
+   * Stores the telemetry timestamps that already existed
+   * when this page was loaded.
+   *
+   * These points belong to the "previous route".
+   */
+  const initialTelemetryTimestamps = useRef<
+      Record<string, Set<string>>
+  >({})
 
-  const telemetryRef = useRef<Telemetry[]>([])
-
-  telemetryRef.current = telemetry
-
-  // --------------------------------
-  // Initialize Mapbox once
-  // --------------------------------
+  const [showFullRoute, setShowFullRoute] = useState(false)
 
   useEffect(() => {
+    if (!mapContainer.current || map.current) return
 
-    if (!mapContainer.current) {
-      return
-    }
-
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
-
-    if (!token) {
-      console.error("Mapbox token is missing")
-      return
-    }
-
-    mapboxgl.accessToken = token
-
-    const initialTelemetry = telemetryRef.current
-
-    const initialPoint =
-      initialTelemetry[0]
+    mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/streets-v12",
-
-      center: initialPoint
-        ? [
-            initialPoint.longitude,
-            initialPoint.latitude
-          ]
-        : [8.4037, 49.0069],
-
-      zoom: 14
+      center: [8.4037, 49.0069],
+      zoom: 12,
     })
 
-    map.current.addControl(
-      new mapboxgl.NavigationControl(),
-      "top-right"
-    )
+    map.current.addControl(new mapboxgl.NavigationControl())
 
-    map.current.on("load", () => {
-
-      const currentTelemetry =
-        telemetryRef.current
-
-      const coordinates =
-        currentTelemetry
-          .slice()
-          .reverse()
-          .map(point => [
-            point.longitude,
-            point.latitude
-          ])
-
-      map.current?.addSource(
-        "vehicle-route",
-        {
-          type: "geojson",
-
-          data: {
-            type: "Feature",
-            properties: {},
-
-            geometry: {
-              type: "LineString",
-              coordinates
-            }
-          }
-        }
+    return () => {
+      Object.values(markers.current).forEach((marker) =>
+          marker.remove(),
       )
 
-      map.current?.addLayer({
-        id: "vehicle-route",
+      markers.current = {}
+      initialTelemetryTimestamps.current = {}
 
-        type: "line",
+      map.current?.remove()
+      map.current = null
+    }
+  }, [])
 
-        source: "vehicle-route",
+  /*
+   * Capture the telemetry that existed when the component
+   * first receives the vehicle data.
+   *
+   * This effect runs only once for the initial vehicle data.
+   */
+  const initialDataCaptured = useRef(false)
 
-        layout: {
-          "line-join": "round",
-          "line-cap": "round"
-        },
+  useEffect(() => {
+    if (initialDataCaptured.current) return
 
-        paint: {
-          "line-color": "#1976d2",
-          "line-width": 4
+    if (vehicles.length === 0) return
+
+    vehicles.forEach((vehicle) => {
+      initialTelemetryTimestamps.current[vehicle.imei] =
+          new Set(
+              vehicle.telemetry.map(
+                  (point) => point.timestamp,
+              ),
+          )
+    })
+
+    initialDataCaptured.current = true
+  }, [vehicles])
+
+  useEffect(() => {
+    const mapInstance = map.current
+
+    if (!mapInstance) return
+
+    const updateMap = () => {
+      const activeImeis = new Set(
+          vehicles.map((vehicle) => vehicle.imei),
+      )
+
+      // --------------------------------
+      // Remove old vehicle markers
+      // --------------------------------
+
+      Object.keys(markers.current).forEach((imei) => {
+        if (!activeImeis.has(imei)) {
+          markers.current[imei].remove()
+          delete markers.current[imei]
         }
       })
 
-      if (currentTelemetry.length > 0) {
+      vehicles.forEach((vehicle) => {
+        const { imei, telemetry } = vehicle
 
-        const latest =
-          currentTelemetry[0]
-
-          const markerElement =
-              document.createElement("div")
-
-          markerElement.innerHTML = "🚗"
-
-          markerElement.style.fontSize = "28px"
-          markerElement.style.lineHeight = "1"
-          markerElement.style.cursor = "pointer"
-
-          marker.current =
-          new mapboxgl.Marker({
-              element: markerElement,
-              rotationAlignment: "map"
-          })
-              .setLngLat([
-                  latest.longitude,
-                  latest.latitude
-              ])
-              .setRotation(latest.heading)
-              .addTo(map.current!)
-      }
-
-    })
-
-    return () => {
-
-      marker.current?.remove()
-
-      marker.current = null
-
-      map.current?.remove()
-
-      map.current = null
-
-    }
-
-  }, [])
-
-    // --------------------------------
-// Update marker and route
-// --------------------------------
-
-    useEffect(() => {
-
-        if (
-            !map.current ||
-            telemetry.length === 0
-        ) {
-            return
-        }
-
+        // API returns newest telemetry first.
         const latest = telemetry[0]
 
-        // Create marker when telemetry becomes available
-        if (!marker.current) {
+        // --------------------------------
+        // Vehicle marker
+        // --------------------------------
 
-            const markerElement =
-                document.createElement("div")
+        if (latest) {
+          const isSelected = imei === selectedImei
 
-            markerElement.innerHTML = "🚗"
+          let marker = markers.current[imei]
 
-            markerElement.style.fontSize = "28px"
-            markerElement.style.lineHeight = "1"
-            markerElement.style.cursor = "pointer"
+          if (!marker) {
+            const element =
+                document.createElement("img")
 
-            marker.current =
-                new mapboxgl.Marker({
-                    element: markerElement,
-                    rotationAlignment: "map"
-                })
-                    .setLngLat([
-                        latest.longitude,
-                        latest.latitude
-                    ])
-                    .setRotation(latest.heading)
-                    .addTo(map.current)
+            element.src = vehicleMarker
+            element.alt = "Vehicle"
 
-        } else {
+            element.style.width = isSelected
+                ? "42px"
+                : "34px"
 
-            // Move existing marker
-            marker.current.setLngLat([
-                latest.longitude,
-                latest.latitude
+            element.style.height = isSelected
+                ? "42px"
+                : "34px"
+
+            element.style.objectFit = "contain"
+            element.style.cursor = "pointer"
+            element.style.userSelect = "none"
+
+            marker = new mapboxgl.Marker({
+              element,
+              rotationAlignment: "map",
+            })
+                .setLngLat([
+                  latest.longitude,
+                  latest.latitude,
+                ])
+                .setRotation(latest.heading)
+                .addTo(mapInstance)
+
+            element.addEventListener("click", () => {
+              onVehicleSelect(imei)
+            })
+
+            markers.current[imei] = marker
+          } else {
+            marker.setLngLat([
+              latest.longitude,
+              latest.latitude,
             ])
 
-            marker.current.setRotation(
-                latest.heading
-            )
-        }
+            marker.setRotation(latest.heading)
 
-        // Update route
-        const source =
-            map.current.getSource(
-                "vehicle-route"
-            ) as mapboxgl.GeoJSONSource | undefined
+            const element =
+                marker.getElement() as HTMLImageElement
 
-        if (source) {
+            element.style.width = isSelected
+                ? "42px"
+                : "34px"
 
-            const coordinates =
-                telemetry
-                    .slice()
-                    .reverse()
-                    .map(point => [
-                        point.longitude,
-                        point.latitude
-                    ])
+            element.style.height = isSelected
+                ? "42px"
+                : "34px"
+          }
 
-            source.setData({
-                type: "Feature",
-                properties: {},
-
-                geometry: {
-                    type: "LineString",
-                    coordinates
-                }
+          // Follow selected vehicle.
+          if (isSelected) {
+            mapInstance.easeTo({
+              center: [
+                latest.longitude,
+                latest.latitude,
+              ],
+              duration: 500,
             })
+          }
         }
 
-    }, [telemetry])
+        // --------------------------------
+        // ROUTE
+        // --------------------------------
+
+        const initialTimestamps =
+            initialTelemetryTimestamps.current[imei] ??
+            new Set<string>()
+
+        /*
+         * Full route:
+         *
+         * Everything returned by the API.
+         *
+         * Recent:
+         *
+         * Only telemetry that was NOT already present
+         * when this page was loaded.
+         */
+        const pointsToDraw = showFullRoute
+            ? telemetry
+            : telemetry.filter(
+                (point) =>
+                    !initialTimestamps.has(
+                        point.timestamp,
+                    ),
+            )
+
+        /*
+         * API returns newest first.
+         *
+         * Reverse so the line is drawn chronologically.
+         */
+        const coordinates = pointsToDraw
+            .slice()
+            .reverse()
+            .map((point) => [
+              point.longitude,
+              point.latitude,
+            ])
+
+        const sourceId = `route-${imei}`
+        const layerId = `route-layer-${imei}`
+
+        // @ts-ignore
+        const routeData: GeoJSON.Feature<GeoJSON.LineString> =
+            {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates,
+              },
+            }
+
+        const existingSource = mapInstance.getSource(
+            sourceId,
+        ) as mapboxgl.GeoJSONSource | undefined
+
+        if (existingSource) {
+          existingSource.setData(routeData)
+        } else if (coordinates.length >= 2) {
+          mapInstance.addSource(sourceId, {
+            type: "geojson",
+            data: routeData,
+          })
+
+          mapInstance.addLayer({
+            id: layerId,
+            type: "line",
+            source: sourceId,
+            layout: {
+              "line-join": "round",
+              "line-cap": "round",
+            },
+            paint: {
+              "line-color": "#000000",
+              "line-width": 2,
+              "line-opacity": 0.8,
+            },
+          })
+        }
+      })
+    }
+
+    if (mapInstance.isStyleLoaded()) {
+      updateMap()
+    } else {
+      mapInstance.once("load", updateMap)
+    }
+  }, [
+    vehicles,
+    selectedImei,
+    onVehicleSelect,
+    showFullRoute,
+  ])
+
   return (
-    <div
-      ref={mapContainer}
-      style={{
-        width: "100%",
-        height: "100%"
-      }}
-    />
+      <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+          }}
+      >
+        {/* Route toggle */}
+        <div
+            style={{
+              position: "absolute",
+              zIndex: 2,
+              top: 12,
+              left: 12,
+              display: "flex",
+              gap: 8,
+            }}
+        >
+          <button
+              onClick={() => setShowFullRoute(false)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                background: showFullRoute
+                    ? "#fff"
+                    : "#000",
+                color: showFullRoute
+                    ? "#000"
+                    : "#fff",
+                cursor: "pointer",
+              }}
+          >
+            Recent
+          </button>
+
+          <button
+              onClick={() => setShowFullRoute(true)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                background: showFullRoute
+                    ? "#000"
+                    : "#fff",
+                color: showFullRoute
+                    ? "#fff"
+                    : "#000",
+                cursor: "pointer",
+              }}
+          >
+            Full route
+          </button>
+        </div>
+
+        <div
+            ref={mapContainer}
+            style={{
+              width: "100%",
+              height: "100%",
+            }}
+        />
+      </div>
   )
 }
-
-export default VehicleMap
-
